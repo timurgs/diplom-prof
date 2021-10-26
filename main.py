@@ -6,11 +6,9 @@ from vk_api.utils import get_random_id
 from datetime import date
 import re
 from io import BytesIO
-from databases.database import *
+from database import *
+from settings import bot_token, user_token
 
-
-bot_token = input('Введите токен бота: ')
-user_token = input('Введите токен пользователя: ')
 
 vk = vk_api.VkApi(token=bot_token)
 longpoll = VkLongPoll(vk)
