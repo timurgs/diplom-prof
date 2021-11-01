@@ -74,6 +74,18 @@ class GetInfoVk:
                     else:
                         write_msg(event_4.user_id, f"Такого пола не бывает...")
 
+    def region_acquisition(self, resp):
+        write_msg(event.user_id, f"Введите свой регион")
+        for event_5_2 in longpoll.listen():
+            if event_5_2.type == VkEventType.MESSAGE_NEW:
+                if event_5_2.to_me:
+                    for r_3 in resp.json()['response']['items']:
+                        if r_3['region'] == event_5_2.text:
+                            return r_3['id'], r_3['title']
+                        elif r_3 == resp.json()['response']['items'][-1]:
+                            write_msg(event.user_id,
+                                      f"Такого региона не существует!")
+
     def no_info_city(self):
         write_msg(event.user_id, f"Введите свой город")
         for event_5 in longpoll.listen():
@@ -91,16 +103,7 @@ class GetInfoVk:
                                 for r_2 in response.json()['response']['items']:
                                     if r_2 != response.json()['response']['items'][0]:
                                         if r['title'] == r_2['title']:
-                                            write_msg(event.user_id, f"Введите свой регион")
-                                            for event_5_2 in longpoll.listen():
-                                                if event_5_2.type == VkEventType.MESSAGE_NEW:
-                                                    if event_5_2.to_me:
-                                                        for r_3 in response.json()['response']['items']:
-                                                            if r_3['region'] == event_5_2.text:
-                                                                return r_3['id'], r_3['title']
-                                                            elif r_3 == response.json()['response']['items'][-1]:
-                                                                write_msg(event.user_id,
-                                                                          f"Такого региона не существует!")
+                                            self.region_acquisition(response)
                                         elif r_2 == response.json()['response']['items'][-1]:
                                             for r_4 in response.json()['response']['items']:
                                                 if r_4['title'] == event_5.text:
@@ -227,73 +230,89 @@ def output_depend_func(attach, result2, id_l, event7, photos_dict):
             send_photo(vk1, event.user_id, urls_list)
 
 
+def further(img_param, attach_param, res_2, id_l, photos_param):
+    if img_param not in data_list:
+        for event_7 in longpoll.listen():
+            if event_7.type == VkEventType.MESSAGE_NEW:
+                if event_7.to_me:
+                    if event_7.text in ['далее', 'Далее']:
+                        output_depend_func(attach_param, res_2, id_l, event_7, photos_param)
+                        break
+                    else:
+                        write_msg(event_7.user_id, 'Я не понимаю...')
+    else:
+        output_depend_func(attach_param, res_2, id_l, event, photos_param)
+
+
+def further_after_first(img_param, id_l, photos_param, urls_l):
+    data_list.append(img_param)
+    write_msg(event.user_id, img_param)
+    id_l.append(photos_param["response"]["items"][0]["owner_id"])
+    send_photo(vk1, event.user_id, urls_l)
+    write_msg(event.user_id, 'Для следующего, введите "далее"')
+
+
+def photo_output_prepare(photos_param, top_photos_param, top_values_param):
+    for photo in photos_param['response']['items']:
+        count = photo['comments']['count'] + photo['likes']['count']
+        top_photos_param[count] = photo['id']
+    if len(top_photos_param) > 3:
+        while len(top_values_param) < 3:
+            top_values_param.append(top_photos_param[max(top_photos_param.keys())])
+            del top_photos_param[max(top_photos_param.keys())]
+    else:
+        for tp in top_photos_param:
+            top_values_param.append(top_photos_param[tp])
+
+
+def pair_search():
+    write_msg(event.user_id, f"Введите свой id или имя пользователя")
+    obj_2 = UsersSearchVk(user_token, '5.131')
+    result_2 = obj_2.users_search(info())
+    obj_3 = GetPhotosVk(user_token, '5.131')
+    result_3 = obj_3.get_photos(result_2)
+    id_list = []
+    img = None
+    i = 0
+    for a, photos in enumerate(result_3):
+        top_values = []
+        top_photos = {}
+        if 'error' in photos:
+            if a == 0:
+                i = 1
+            continue
+        else:
+            photo_output_prepare(photos, top_photos, top_values)
+            attachment = []
+            for photo in photos['response']['items']:
+                if photo['id'] in top_values:
+                    image = photo['sizes'][-3]['url']
+                    attachment.append(image)
+            if len(photos["response"]["items"]) != 0:
+                img = f'https://vk.com/id{photos["response"]["items"][0]["owner_id"]}'
+            else:
+                iterate = result_2['response']['items']
+                for el in iterate:
+                    if el['id'] not in id_list and el['is_closed'] is True:
+                        continue
+                    elif el['id'] not in id_list:
+                        img = f'https://vk.com/id{el["id"]}'
+            if i == 0 or i == 1:
+                i = 2
+                urls_list = [upload_photo(upload1, j) for j in attachment]
+                if img not in data_list:
+                    further_after_first(img, id_list, photos, urls_list)
+                else:
+                    continue
+            else:
+                further(img, attachment, result_2, id_list, photos)
+
+
 def new_message(message):
     if message == 'привет' or message == 'Привет':
         write_msg(event.user_id, f"Хай, {event.user_id}")
     elif message == 'найди мне пару' or message == 'Найди мне пару':
-        write_msg(event.user_id, f"Введите свой id или имя пользователя")
-        obj_2 = UsersSearchVk(user_token, '5.131')
-        result_2 = obj_2.users_search(info())
-        obj_3 = GetPhotosVk(user_token, '5.131')
-        result_3 = obj_3.get_photos(result_2)
-        id_list = []
-        img = None
-        i = 0
-        for a, photos in enumerate(result_3):
-            top_values = []
-            top_photos = {}
-            if 'error' in photos:
-                if a == 0:
-                    i = 1
-                continue
-            else:
-                for photo in photos['response']['items']:
-                    count = photo['comments']['count'] + photo['likes']['count']
-                    top_photos[count] = photo['id']
-                if len(top_photos) > 3:
-                    while len(top_values) < 3:
-                        top_values.append(top_photos[max(top_photos.keys())])
-                        del top_photos[max(top_photos.keys())]
-                else:
-                    for tp in top_photos:
-                        top_values.append(top_photos[tp])
-                attachment = []
-                for photo in photos['response']['items']:
-                    if photo['id'] in top_values:
-                        image = photo['sizes'][-3]['url']
-                        attachment.append(image)
-                if len(photos["response"]["items"]) != 0:
-                    img = f'https://vk.com/id{photos["response"]["items"][0]["owner_id"]}'
-                else:
-                    iterate = result_2['response']['items']
-                    for el in iterate:
-                        if el['id'] not in id_list and el['is_closed'] is True:
-                            continue
-                        elif el['id'] not in id_list:
-                            img = f'https://vk.com/id{el["id"]}'
-                if i == 0 or i == 1:
-                    i = 2
-                    urls_list = [upload_photo(upload1, j) for j in attachment]
-                    if img not in data_list:
-                        data_list.append(img)
-                        write_msg(event.user_id, img)
-                        id_list.append(photos["response"]["items"][0]["owner_id"])
-                        send_photo(vk1, event.user_id, urls_list)
-                        write_msg(event.user_id, 'Для следующего, введите "далее"')
-                    else:
-                        continue
-                else:
-                    if img not in data_list:
-                        for event_7 in longpoll.listen():
-                            if event_7.type == VkEventType.MESSAGE_NEW:
-                                if event_7.to_me:
-                                    if event_7.text in ['далее', 'Далее']:
-                                        output_depend_func(attachment, result_2, id_list, event_7, photos)
-                                        break
-                                    else:
-                                        write_msg(event_7.user_id, 'Я не понимаю...')
-                    else:
-                        output_depend_func(attachment, result_2, id_list, event, photos)
+        pair_search()
         write_msg(event.user_id, 'Больше нету)')
     elif message == 'пока' or message == 'Пока':
         write_msg(event.user_id, "Пока((")
